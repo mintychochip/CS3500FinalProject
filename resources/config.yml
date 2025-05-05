@@ -1,0 +1,11 @@
+random_state: 42
+test_size: 0.2
+batch_size: 64
+weight_decay: 0.00001
+dropout_rate: 0.2
+max_epochs: 100
+patience: 15
+scheduler:
+  min_lr: 0.001
+  patience: 15
+  factor: 0.5

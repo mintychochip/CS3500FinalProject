@@ -1,10 +1,10 @@
 import datetime
 import pandas as pd
-from typing import List
+from typing import List, Optional
 from sklearn.feature_extraction import FeatureHasher
 
 
-def get_time_of_day_label(dt: datetime) -> str:
+def get_time_of_day_label(dt: datetime) -> Optional[str]:
     hour = dt.hour
     time_of_day = {
         (4, 6): 'Dawn',
@@ -24,7 +24,7 @@ def get_time_of_day_label(dt: datetime) -> str:
             return label
 
 
-def get_season_label(dt: datetime) -> str:
+def get_season_label(dt: datetime) -> Optional[str]:
     season_map = {
         (3, 5): 'Spring',
         (6, 8): 'Summer',
@@ -37,7 +37,7 @@ def get_season_label(dt: datetime) -> str:
             return season
 
 
-def get_age_group(age: int) -> str:
+def get_age_group(age: int) -> Optional[str]:
     if age < 0:
         return 'Invalid'
 
@@ -68,11 +68,21 @@ def apply_one_hot_encoding(df: pd.DataFrame, features: List[str]) -> pd.DataFram
 
 def apply_feature_hashing(df: pd.DataFrame, features: List[str], feature_hasher: FeatureHasher) -> pd.DataFrame:
     for feature in features:
-        hashed = feature_hasher.transform(df[feature])
-        hashed_df = pd.DataFrame(hashed.toarray(), columns=[f'{feature}_hash_{i}' for i in range(hashed.shape[1])])
+        # Ensure values are list of strings
+        data_to_hash = df[feature].tolist()  # Each row should be a list of strings
+        hashed = feature_hasher.transform(data_to_hash)
+
+        hashed_df = pd.DataFrame(
+            hashed.toarray(),
+            columns=[f'{feature}_hash_{i}' for i in range(hashed.shape[1])],
+            index=df.index  # Align rows properly
+        )
+
         df = pd.concat([df, hashed_df], axis=1)
+
     df.drop(columns=features, inplace=True)
     return df
+
 
 
 def apply_frequency_encoding(df: pd.DataFrame, features: List[str]) -> pd.DataFrame:
@@ -101,7 +111,6 @@ def extract_datetime_components(df: pd.DataFrame) -> pd.DataFrame:
     df['DateOccDay'] = df['DATE OCC'].dt.day
     df['TimeOccHour'] = df['TIME OCC'].dt.hour
     df['TimeOccMinute'] = df['TIME OCC'].dt.minute
-    df['TimeOccSecond'] = df['TIME OCC'].dt.second
     df.drop(['DATE OCC', 'TIME OCC', 'Date Rptd'], axis=1, inplace=True)
     return df
 
