@@ -6,7 +6,7 @@ import yaml
 from matplotlib import pyplot as plt
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import PowerTransformer
+from sklearn.preprocessing import PowerTransformer, MinMaxScaler
 from torch.nn import BCEWithLogitsLoss
 from torch.nn.modules.loss import _Loss
 from torch.optim import AdamW
@@ -46,25 +46,27 @@ class CrimeDataSet(Dataset):
   def __getitem__(self, index):
     return self.X[index], self.y[index]
 
+
 class CrimeModel(nn.Module):
   def __init__(self, input_dim):
     super().__init__()
     self.fc1 = nn.Linear(input_dim, 64)
+    self.bn1 = nn.BatchNorm1d(64)
     self.fc2 = nn.Linear(64, 32)
+    self.bn2 = nn.BatchNorm1d(32)
     self.output = nn.Linear(32, 1)
 
     self.relu = nn.ReLU()
-    self.dropout = nn.Dropout(CONFIG['dropout_rate'])
 
   def forward(self, x):
-    x = self.relu(self.fc1(x))
-    x = self.dropout(self.relu(self.fc2(x)))
+    x = self.relu(self.bn1(self.fc1(x)))
+    x = self.relu(self.bn2(self.fc2(x)))
     return self.output(x)
 
 
 def scale_features(x_train: pd.DataFrame, x_test: pd.DataFrame) -> tuple[
   pd.DataFrame, pd.DataFrame]:
-  scaler = PowerTransformer(method='yeo-johnson')
+  scaler = MinMaxScaler()
   x_train_scaled = scaler.fit_transform(x_train)
   x_test_scaled = scaler.transform(x_test)
   return x_train_scaled, x_test_scaled
@@ -80,7 +82,7 @@ def create_data_loaders(train_dataset: CrimeDataSet, test_dataset: CrimeDataSet,
   sampler = WeightedRandomSampler(sample_weights, len(sample_weights))
   batch_size: int = CONFIG['batch_size']
   train_loader = DataLoader(train_dataset, batch_size=batch_size,
-                            sampler=sampler)
+                            shuffle=True)
   test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
   return train_loader, test_loader
 
@@ -130,13 +132,13 @@ def train_nn(df: pd.DataFrame) -> CrimeModel:
       CrimeDataSet(x_test_scaled, y_test),
       y_train)
 
-  num_pos = (y == 1).sum()
-  num_neg = (y == 0).sum()
-  class_weight = num_neg / num_pos
-  pos_weight = torch.tensor([class_weight])
-  criterion = BCEWithLogitsLoss(pos_weight=pos_weight.to(DEVICE))
+  # num_pos = (y == 1).sum()
+  # num_neg = (y == 0).sum()
+  # class_weight = num_neg / num_pos
+  # pos_weight = torch.tensor([class_weight])
+  criterion = BCEWithLogitsLoss()
   model = CrimeModel(input_dim=x_train_scaled.shape[1]).to(DEVICE)
-  optimizer = AdamW(model.parameters(), lr=CONFIG['scheduler']['min_lr'],
+  optimizer = torch.optim.AdamW(model.parameters(), lr=CONFIG['learning_rate'],
                     weight_decay=CONFIG['weight_decay'])
   max_epochs = CONFIG['max_epochs']
   epochs_no_improve = 0
@@ -146,7 +148,6 @@ def train_nn(df: pd.DataFrame) -> CrimeModel:
       mode='min',
       factor=CONFIG['scheduler']['factor'],
       patience=CONFIG['scheduler']['patience'],
-      verbose=True,
       min_lr=CONFIG['scheduler']['min_lr']
   )
 
@@ -199,7 +200,7 @@ def train_nn(df: pd.DataFrame) -> CrimeModel:
         print(f"Early stopping triggered at epoch {epoch + 1}")
         break
 
-    scheduler.step(val_loss)
+    scheduler.step(val_running_loss / len(test_loader))
     print(
         f"Epoch {epoch + 1}/{max_epochs}, Train Loss: {train_losses[-1]:.4f}, Val Loss: {val_losses[-1]:.4f}")
     print_loss_graph(train_losses,val_losses)

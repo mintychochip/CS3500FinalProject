@@ -182,7 +182,7 @@ def clean_data(df: pd.DataFrame, file_path: str) -> pd.DataFrame:
     df = apply_frequency_encoding(df, ['Rpt Dist No', 'Crm Cd', 'Premis Cd', 'Weapon Used Cd'])
     df = apply_one_hot_encoding(df, ['AREA', 'Part 1-2', 'Vict Descent', 'Vict Sex', 'TimeOfDay', 'Season', 'AgeBucket'])
     df['Mocodes'] = df['Mocodes'].fillna('').astype(str).str.split()
-    df = apply_feature_hashing(df, ['Mocodes'], FeatureHasher(n_features=64, input_type='string'))
+    df = apply_feature_hashing(df, ['Mocodes'], FeatureHasher(n_features=32, input_type='string'))
     df = convert_status_to_target(df)
     df = rearrange_columns(df, 'Target')
     df.to_csv(file_path, index=False)
