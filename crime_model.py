@@ -1,67 +1,15 @@
-import yaml
 import pandas as pd
 import torch
-import torch.nn as nn
-import yaml
 from matplotlib import pyplot as plt
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import PowerTransformer, MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler
 from torch.nn import BCEWithLogitsLoss
 from torch.nn.modules.loss import _Loss
-from torch.optim import AdamW
-from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
+from torch.utils.data import DataLoader, WeightedRandomSampler
 from tqdm import tqdm
 
-
-def load_config(file_path='resources/config.yml'):
-  with open(file_path, 'r') as file:
-    return yaml.safe_load(file)
-
-
-def get_device() -> torch.device:
-  cuda = torch.cuda.is_available()
-  selected_device = torch.device('cuda' if cuda else 'cpu')
-  if cuda:
-    print('GPU Name:', torch.cuda.get_device_name(0))
-    print('Total GPU Memory:',
-          torch.cuda.get_device_properties(0).total_memory / 1e9, 'GB')
-  else:
-    print('Running on CPU.')
-  return selected_device
-
-
-DEVICE: torch.device = get_device()
-CONFIG = load_config()
-
-
-class CrimeDataSet(Dataset):
-  def __init__(self, X, y):
-    self.X = torch.tensor(X, dtype=torch.float32).to(DEVICE)
-    self.y = torch.tensor(y.to_numpy(), dtype=torch.float32).to(DEVICE)
-
-  def __len__(self):
-    return len(self.y)
-
-  def __getitem__(self, index):
-    return self.X[index], self.y[index]
-
-
-class CrimeModel(nn.Module):
-  def __init__(self, input_dim):
-    super().__init__()
-    self.fc1 = nn.Linear(input_dim, 64)
-    self.bn1 = nn.BatchNorm1d(64)
-    self.fc2 = nn.Linear(64, 32)
-    self.bn2 = nn.BatchNorm1d(32)
-    self.output = nn.Linear(32, 1)
-
-    self.relu = nn.ReLU()
-
-  def forward(self, x):
-    x = self.relu(self.bn1(self.fc1(x)))
-    x = self.relu(self.bn2(self.fc2(x)))
-    return self.output(x)
+from utils import CrimeDataSet, CONFIG, CrimeModel, DEVICE
 
 
 def scale_features(x_train: pd.DataFrame, x_test: pd.DataFrame) -> tuple[
@@ -124,24 +72,23 @@ def train_nn(df: pd.DataFrame) -> CrimeModel:
   target = 'Target'
   x = df.drop(columns=[target])
   y = df[target]
-  x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=CONFIG[
-    'test_size'], random_state=CONFIG['random_state'])
+  x_train, x_test, y_train, y_test = train_test_split(
+      x, y, test_size=CONFIG['test_size'], random_state=CONFIG['random_state'])
+
   x_train_scaled, x_test_scaled = scale_features(x_train, x_test)
+
   train_loader, test_loader = create_data_loaders(
       CrimeDataSet(x_train_scaled, y_train),
       CrimeDataSet(x_test_scaled, y_test),
       y_train)
 
-  # num_pos = (y == 1).sum()
-  # num_neg = (y == 0).sum()
-  # class_weight = num_neg / num_pos
-  # pos_weight = torch.tensor([class_weight])
   criterion = BCEWithLogitsLoss()
   model = CrimeModel(input_dim=x_train_scaled.shape[1]).to(DEVICE)
-  optimizer = torch.optim.AdamW(model.parameters(), lr=CONFIG['learning_rate'],
-                    weight_decay=CONFIG['weight_decay'])
+  optimizer = torch.optim.AdamW(model.parameters(),
+                                lr=CONFIG['learning_rate'],
+                                weight_decay=CONFIG['weight_decay'])
+
   max_epochs = CONFIG['max_epochs']
-  epochs_no_improve = 0
   patience = CONFIG['patience']
   scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
       optimizer,
@@ -152,9 +99,9 @@ def train_nn(df: pd.DataFrame) -> CrimeModel:
   )
 
   best_loss = float('inf')
+  epochs_no_improve = 0
   train_losses = []
   val_losses = []
-
   for epoch in tqdm(range(max_epochs), desc="Training"):
     model.train()
     running_loss = 0
@@ -164,44 +111,41 @@ def train_nn(df: pd.DataFrame) -> CrimeModel:
       y_batch = y_batch.to(DEVICE).long().view(-1)
 
       optimizer.zero_grad()
-      outputs = model(x_batch).squeeze(
-          1)
-      loss = criterion(outputs,
-                       y_batch.float())
+      outputs = model(x_batch).squeeze(1)
+      loss = criterion(outputs, y_batch.float())
       loss.backward()
       optimizer.step()
-
       running_loss += loss.item()
 
     train_losses.append(running_loss / len(train_loader))
 
     model.eval()
     val_running_loss = 0
-
     with torch.no_grad():
       for x_batch, y_batch in test_loader:
         x_batch = x_batch.to(DEVICE)
         y_batch = y_batch.to(DEVICE).long().view(-1)
-
         outputs = model(x_batch).squeeze(1)
         val_loss = criterion(outputs, y_batch.float())
-
         val_running_loss += val_loss.item()
 
-    val_losses.append(
-        val_running_loss / len(test_loader))  # Save validation loss
+    val_loss_avg = val_running_loss / len(test_loader)
+    val_losses.append(val_loss_avg)
 
-    if val_losses[-1] < best_loss:
-      best_loss = val_losses[-1]
+    if val_loss_avg < best_loss:
+      best_loss = val_loss_avg
       epochs_no_improve = 0
+      torch.save(model.state_dict(),  CONFIG['weight_path'])
+      print(f'Model saved to {CONFIG['weight_path']}')
     else:
       epochs_no_improve += 1
       if epochs_no_improve >= patience:
         print(f"Early stopping triggered at epoch {epoch + 1}")
         break
 
-    scheduler.step(val_running_loss / len(test_loader))
-    print(
-        f"Epoch {epoch + 1}/{max_epochs}, Train Loss: {train_losses[-1]:.4f}, Val Loss: {val_losses[-1]:.4f}")
-    print_loss_graph(train_losses,val_losses)
+    scheduler.step(val_loss_avg)
+    print(f"Epoch {epoch + 1}/{max_epochs}, Train Loss: {train_losses[-1]:.4f}, Val Loss: {val_losses[-1]:.4f}")
+    print_loss_graph(train_losses, val_losses)
+
   return model
+
