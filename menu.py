@@ -1,5 +1,7 @@
 import os
 
+import numpy as np
+
 # Environment + Warning Config
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 os.environ['OMP_NUM_THREADS'] = '1'
@@ -99,7 +101,7 @@ def generate_predictions(
 
 
 def evaluate_model(predictions: Tensor, y_test: pd.Series,
-    probs: list[float]) -> None:
+    probs: np.ndarray) -> None:
   try:
     pred_np = predictions.cpu().numpy()
     acc = accuracy_score(y_test, pred_np)
@@ -159,17 +161,15 @@ def main() -> None:
         try:
           if train_df is not None:
             print('Cleaning train data.')
-            clean_train_df = clean_data(train_df, CONFIG['clean_train'],
-                                        'training')
+            clean_train_df = clean_data(train_df, CONFIG['clean_train'])
           if test_df is not None:
             print('Cleaning test data.')
-            clean_test_df = clean_data(test_df, CONFIG['clean_test'], 'testing')
+            clean_test_df = clean_data(test_df, CONFIG['clean_test'])
         except PermissionError as e:
           print(f'Permission error: {e}')
         except AttributeError as e:
           print(f'Attribute error: {e}')
       elif choice == '3':
-        print('Training model')
         if clean_train_df is None:
           clean_train_df = load_data(CONFIG['clean_train'])
           if clean_train_df is None:
@@ -229,7 +229,7 @@ def main() -> None:
       elif choice == '6':
         print('Calculating Results')
         if predictions is not None and y_test is not None:
-          evaluate_model(predictions, y_test, probs_output)
+          evaluate_model(predictions, y_test, probs)
         else:
           print('No predictions available. Run prediction first.')
 

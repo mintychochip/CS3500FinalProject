@@ -1,9 +1,9 @@
 random_state: 42
 test_size: 0.2
-batch_size: 32
+batch_size: 64
 weight_decay: 0.01
 dropout_rate: 0.3
-max_epochs: 100
+max_epochs: 250
 patience: 20
 learning_rate: 0.00003
 scheduler:
