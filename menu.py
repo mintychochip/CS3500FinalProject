@@ -1,4 +1,9 @@
 import os
+
+# Environment + Warning Config
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
 import time
 import warnings
 from typing import Optional
@@ -19,10 +24,6 @@ from crime_model import train_nn, CrimeModel
 from data_cleaning import clean_data
 from utils import DEVICE, CONFIG, DF_COLUMNS
 
-# Environment + Warning Config
-os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
-os.environ['OMP_NUM_THREADS'] = '1'
-os.environ['MKL_NUM_THREADS'] = '1'
 with warnings.catch_warnings():
   warnings.simplefilter('ignore', category=RuntimeWarning)
 
@@ -40,15 +41,17 @@ def display_menu() -> None:
   print('    (7) Quit')
 
 
-def load_data(file_path: str) -> Optional[pd.DataFrame]:
+def load_data(file_path: str, check_cols: bool = False) -> Optional[
+  pd.DataFrame]:
   print(f'Loading data: {file_path}')
   try:
     start = time.time()
     df = pd.read_csv(file_path)
-    missing = [col for col in DF_COLUMNS if col not in df.columns]
-    if missing:
-      print(f'Missing required columns: {missing}')
-      return None
+    if check_cols:
+      missing = [col for col in DF_COLUMNS if col not in df.columns]
+      if missing:
+        print(f'Missing required columns: {missing}')
+        return None
     print(f'Data loaded in {time.time() - start:.2f} seconds.')
     return df
   except FileNotFoundError:
@@ -58,23 +61,6 @@ def load_data(file_path: str) -> Optional[pd.DataFrame]:
   except Exception as e:
     print(f'Unexpected error: {e}')
   return None
-
-
-def try_clean_data(df: Optional[pd.DataFrame], config_path: str, label: str) -> \
-Optional[pd.DataFrame]:
-  if df is None:
-    print(f'No {label} data loaded.')
-    return None
-  try:
-    print(f'Cleaning {label} data...')
-    start = time.time()
-    cleaned = clean_data(df, config_path)
-    print(
-      f'{label.capitalize()} data cleaned in {time.time() - start:.2f} seconds.')
-    return cleaned
-  except Exception as e:
-    print(f'Error cleaning {label} data: {e}')
-    return None
 
 
 def generate_predictions(
@@ -96,7 +82,7 @@ def generate_predictions(
     if model is None:
       model = CrimeModel(input_dim=x_test_scaled.shape[1]).to(DEVICE)
       model.load_state_dict(
-        torch.load(CONFIG['weight_path'], map_location=DEVICE))
+          torch.load(CONFIG['weight_path'], map_location=DEVICE))
       model.eval()
 
     tensor = torch.tensor(x_test_scaled, dtype=torch.float32).to(DEVICE)
@@ -156,62 +142,102 @@ def evaluate_model(predictions: Tensor, y_test: pd.Series,
 def main() -> None:
   train_df = clean_train_df = test_df = clean_test_df = None
   model = predictions = y_test = probs_output = None
-
   while True:
-    display_menu()
-    choice = input('Enter a menu option: ').strip()
+    try:
+      display_menu()
+      choice = input('Enter a menu option: ').strip()
 
-    if choice == '7':
-      print('Exiting now!')
-      break
+      if choice == '7':
+        print('Exiting now!')
+        break
 
-    elif choice == '1':
-      path = input('Input training data file path: ')
-      train_df = load_data(path)
+      elif choice == '1':
+        path = input('Input training data file path: ')
+        train_df = load_data(path, True)
 
-    elif choice == '2':
-      clean_train_df = try_clean_data(train_df, CONFIG['clean_train'],
-                                      'training')
-      clean_test_df = try_clean_data(test_df, CONFIG['clean_test'], 'testing')
-
-    elif choice == '3':
-      print('Training model')
-      if clean_train_df is None:
-        clean_train_df = load_data(CONFIG['clean_train'])
+      elif choice == '2':
+        try:
+          if train_df is not None:
+            print('Cleaning train data.')
+            clean_train_df = clean_data(train_df, CONFIG['clean_train'],
+                                        'training')
+          if test_df is not None:
+            print('Cleaning test data.')
+            clean_test_df = clean_data(test_df, CONFIG['clean_test'], 'testing')
+        except PermissionError as e:
+          print(f'Permission error: {e}')
+        except AttributeError as e:
+          print(f'Attribute error: {e}')
+      elif choice == '3':
+        print('Training model')
         if clean_train_df is None:
-          continue
-      model = train_nn(clean_train_df)
+          clean_train_df = load_data(CONFIG['clean_train'])
+          if clean_train_df is None:
+            continue
+        model = train_nn(clean_train_df)
 
-    elif choice == '4':
-      path = input('Input test data file path: ')
-      test_df = load_data(path)
+      elif choice == '4':
+        path = input('Input test data file path: ')
+        test_df = load_data(path, True)
 
-    elif choice == '5':
-      print('Generating predictions')
-      if clean_train_df is None:
-        clean_train_df = load_data(CONFIG['clean_train']) or try_clean_data(
-          train_df, CONFIG['clean_train'], 'training')
-      if clean_test_df is None:
-        clean_test_df = load_data(CONFIG['clean_test']) or try_clean_data(
-          test_df, CONFIG['clean_test'], 'testing')
-      if clean_train_df and clean_test_df:
-        predictions, y_test, probs_output, model = generate_predictions(model,
-                                                                        clean_train_df,
-                                                                        clean_test_df)
+      elif choice == '5':
+        print('Generating predictions...')
+        try:
+          if clean_train_df is None:
+            clean_train_df = load_data(CONFIG['clean_train'])
+            if clean_train_df is None:
+              if train_df is not None:
+                clean_train_df = clean_data(train_df, CONFIG['clean_train'])
+              else:
+                print('Load training data.')
+                continue
 
-    elif choice == '6':
-      print('Calculating Results')
-      if predictions is not None and y_test is not None:
-        evaluate_model(predictions, y_test, probs_output)
+          if clean_test_df is None:
+            clean_test_df = load_data(CONFIG['clean_test'])
+            if clean_test_df is None:
+              if test_df is not None:
+                clean_test_df = clean_data(test_df, CONFIG['clean_test'])
+              else:
+                print('Load testing data.')
+                continue
+        except PermissionError as e:
+          print(f'Permission error: {e}')
+        except AttributeError as e:
+          print(f'Attribute error: {e}')
+        if clean_train_df is not None and clean_test_df is not None:
+          target = 'Target'
+          x_train = clean_train_df.drop(columns=[target])
+          x_test = clean_test_df.drop(columns=[target])
+          y_test = clean_test_df[target]
+
+          scaler = MinMaxScaler()
+          scaler.fit(x_train)
+          x_test_scaled = scaler.transform(x_test)
+
+          if model is None:
+            model = CrimeModel(input_dim=x_test_scaled.shape[1]).to(DEVICE)
+            model.load_state_dict(
+              torch.load(CONFIG['weight_path'], map_location=DEVICE))
+            model.eval()
+          tensor = torch.tensor(x_test_scaled, dtype=torch.float32).to(DEVICE)
+          with torch.no_grad():
+            outputs = model(tensor)
+            probs = torch.sigmoid(outputs).cpu().numpy().flatten()
+            predictions = torch.tensor((probs >= 0.5).astype(int))
+            print('Predictions:', predictions.numpy())
+          print(f'Generated predictions: {predictions}')
+      elif choice == '6':
+        print('Calculating Results')
+        if predictions is not None and y_test is not None:
+          evaluate_model(predictions, y_test, probs_output)
+        else:
+          print('No predictions available. Run prediction first.')
+
       else:
-        print('No predictions available. Run prediction first.')
-
-    else:
-      print('Invalid option.')
+        print('Invalid option.')
+    except Exception as e:
+      print(f'Unexpected error occurred: {e}')
 
 
 if __name__ == '__main__':
-  try:
-    main()
-  except Exception as e:
-    print(f'Unexpected error occurred: {e}')
+  main()
