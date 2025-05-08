@@ -1,8 +1,8 @@
 import datetime
 from typing import List, Optional
+
 import holidays
 import pandas as pd
-from sklearn.cluster import KMeans
 from sklearn.feature_extraction import FeatureHasher
 
 
@@ -41,8 +41,6 @@ def get_season_label(dt: datetime) -> Optional[str]:
 
 
 def get_age_group(age: int) -> Optional[str]:
-    if age < 0:
-        return 'Invalid'
 
     age_groups = {
         (0, 12): 'Child',
@@ -178,7 +176,10 @@ def remove_unwanted_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def clean_data(df: pd.DataFrame, file_path: str) -> pd.DataFrame:
-    df = df.set_index('DR_NO')
+    try:
+        df = df.set_index('DR_NO')
+    except AttributeError:
+        raise
     df = remove_unwanted_columns(df)
     df = convert_data_types(df)
     codes = ['Crm Cd', 'Premis Cd', 'Weapon Used Cd']

@@ -68,10 +68,10 @@ def print_loss_graph(train_losses, val_losses):
   plt.show()
 
 
-def train_nn(df: pd.DataFrame) -> CrimeModel:
+def train_nn(train_df: pd.DataFrame) -> CrimeModel:
   target = 'Target'
-  x = df.drop(columns=[target])
-  y = df[target]
+  x = train_df.drop(columns=[target])
+  y = train_df[target]
   x_train, x_test, y_train, y_test = train_test_split(
       x, y, test_size=CONFIG['test_size'], random_state=CONFIG['random_state'])
 

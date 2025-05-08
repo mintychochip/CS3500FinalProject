@@ -5,10 +5,11 @@ weight_decay: 0.01
 dropout_rate: 0.3
 max_epochs: 500
 patience: 1000
-learning_rate: 0.00005
+learning_rate: 0.00003
 scheduler:
   min_lr: 0.00001
   patience: 15
   factor: 0.5
 weight_path: resources/model.pt
-clean_file_path: resources/clean.csv
+clean_train: resources/clean_train.csv
+clean_test: resources/clean_test.csv
