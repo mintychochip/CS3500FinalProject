@@ -4,7 +4,6 @@ import warnings
 with warnings.catch_warnings():
   warnings.simplefilter("ignore", category=RuntimeWarning)
 
-from matplotlib import pyplot as plt
 from sklearn.metrics import accuracy_score, classification_report, f1_score
 from sklearn.model_selection import train_test_split
 
@@ -128,7 +127,12 @@ def main():
         if clean_df is not None:
           print(f'Data cleaned in {end_time - start_time:.2f} seconds.')
       else:
-        print('Data is not loaded yet or nil.')
+        if train_df is None:
+          print(f'Training data is not loaded.')
+        elif test_df is None:
+          print(f'Testing data is not loaded.')
+        else:
+          print('Data is nil.')
 
     elif choice == '3':
       if clean_df is None:
