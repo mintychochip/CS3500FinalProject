@@ -1,5 +1,6 @@
 import torch
 import yaml
+from typing import List
 from torch import nn
 from torch.utils.data import Dataset
 
@@ -24,6 +25,13 @@ def get_device() -> torch.device:
 DEVICE: torch.device = get_device()
 CONFIG = load_config()
 
+DF_COLUMNS: List[str] = [
+    'DR_NO', 'Date Rptd', 'DATE OCC', 'TIME OCC', 'AREA', 'AREA NAME',
+    'Rpt Dist No', 'Part 1-2', 'Crm Cd', 'Crm Cd Desc', 'Mocodes',
+    'Vict Age', 'Vict Sex', 'Vict Descent', 'Premis Cd', 'Premis Desc',
+    'Weapon Used Cd', 'Weapon Desc', 'Status', 'Status Desc'
+]
+
 
 class CrimeDataSet(Dataset):
   def __init__(self, x, y):
@@ -43,13 +51,13 @@ class CrimeModel(nn.Module):
     self.net = nn.Sequential(
         nn.Linear(input_dim, 64),
         nn.ReLU(),
-        nn.Dropout(0.3),
+        nn.Dropout(CONFIG['dropout_rate']),
         nn.Linear(64, 64),
         nn.ReLU(),
-        nn.Dropout(0.3),
+        nn.Dropout(CONFIG['dropout_rate']),
         nn.Linear(64, 32),
         nn.ReLU(),
-        nn.Linear(32,1)
+        nn.Linear(32, 1)
     )
 
   def forward(self, x):

@@ -102,7 +102,7 @@ def train_nn(train_df: pd.DataFrame) -> CrimeModel:
   epochs_no_improve = 0
   train_losses = []
   val_losses = []
-  for epoch in tqdm(range(max_epochs), desc="Training"):
+  for epoch in tqdm(range(max_epochs), desc='Training'):
     model.train()
     running_loss = 0
 
@@ -135,17 +135,16 @@ def train_nn(train_df: pd.DataFrame) -> CrimeModel:
     if val_loss_avg < best_loss:
       best_loss = val_loss_avg
       epochs_no_improve = 0
-      torch.save(model.state_dict(),  CONFIG['weight_path'])
-      print(f'Model saved to {CONFIG['weight_path']}')
+      torch.save(model.state_dict(), CONFIG['weight_path'])
+      print(f'Model saved to {CONFIG["weight_path"]}')
     else:
       epochs_no_improve += 1
       if epochs_no_improve >= patience:
-        print(f"Early stopping triggered at epoch {epoch + 1}")
+        print(f'Early stopping triggered at epoch {epoch + 1}')
         break
 
     scheduler.step(val_loss_avg)
-    print(f"Epoch {epoch + 1}/{max_epochs}, Train Loss: {train_losses[-1]:.4f}, Val Loss: {val_losses[-1]:.4f}")
+    print(f'Epoch {epoch + 1}/{max_epochs}, Train Loss: {train_losses[-1]:.4f}, Val Loss: {val_losses[-1]:.4f}')
     print_loss_graph(train_losses, val_losses)
 
   return model
-

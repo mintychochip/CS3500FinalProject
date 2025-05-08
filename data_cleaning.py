@@ -41,7 +41,6 @@ def get_season_label(dt: datetime) -> Optional[str]:
 
 
 def get_age_group(age: int) -> Optional[str]:
-
     age_groups = {
         (0, 12): 'Child',
         (13, 17): 'Teen',
@@ -71,18 +70,14 @@ def apply_one_hot_encoding(df: pd.DataFrame,
 def apply_feature_hashing(df: pd.DataFrame, features: List[str],
                           feature_hasher: FeatureHasher) -> pd.DataFrame:
     for feature in features:
-        # Ensure values are list of strings
-        data_to_hash = df[feature].tolist()  # Each row should be a list of strings
+        data_to_hash = df[feature].tolist()
         hashed = feature_hasher.transform(data_to_hash)
-
         hashed_df = pd.DataFrame(
             hashed.toarray(),
             columns=[f'{feature}_hash_{i}' for i in range(hashed.shape[1])],
-            index=df.index  # Align rows properly
+            index=df.index
         )
-
         df = pd.concat([df, hashed_df], axis=1)
-
     df.drop(columns=features, inplace=True)
     return df
 
@@ -116,11 +111,9 @@ def reformat_time_column(df: pd.DataFrame) -> pd.DataFrame:
     df['TIME OCC'] = df['TIME OCC'].fillna('').astype(str)
 
     if df['TIME OCC'].str.contains(r'\D').any():
-        print('Warning: There are non-digit characters in "TIME OCC" column.')
+        print('Warning: There are non-digit characters in \'TIME OCC\' column.')
 
-    df['TIME OCC'] = df['TIME OCC'].str.zfill(4).str[:-2] + ':' + df[
-                                                                      'TIME OCC'].str[
-                                                                  -2:]
+    df['TIME OCC'] = df['TIME OCC'].str.zfill(4).str[:-2] + ':' + df['TIME OCC'].str[-2:]
 
     df['TIME OCC'] = pd.to_datetime(df['TIME OCC'], format='%H:%M',
                                     errors='coerce')
@@ -133,7 +126,6 @@ def convert_data_types(df: pd.DataFrame) -> pd.DataFrame:
     df['Vict Sex'] = df['Vict Sex'].astype('string')
     df['Vict Descent'] = df['Vict Descent'].astype('string')
     df['Status'] = df['Status'].astype('string')
-    df['Rpt Dist No'] = df['Rpt Dist No'].astype(str)
     return df
 
 
@@ -151,23 +143,24 @@ def generate_features(df: pd.DataFrame) -> pd.DataFrame:
     df['AgeBucket'] = df['Vict Age'].apply(get_age_group)
     df['DayOfWeek'] = df['DATE OCC'].dt.dayofweek
 
-    df['IsHoliday'] = df['DATE OCC'].apply(
-        lambda x: x.date() in us_holidays)
+    df['IsHoliday'] = df['DATE OCC'].apply(lambda x: x.date() in us_holidays)
+    df['DaysToHoliday'] = df['DATE OCC'].apply(
+        lambda x: min(abs((x.date() - h).days) for h in set(us_holidays.keys())))
+
     df['CrimeCountInArea'] = df.groupby('AREA')['Crm Cd'].transform('count')
     return df
 
 
 def filter_invalid_values(df: pd.DataFrame) -> pd.DataFrame:
     df = df[(df['Vict Age'] != 0) & (df['Vict Age'].notna())]
-    df = df[(df['Vict Sex'] != 'X') & (df['Vict Sex'] != 'H') & (
-        df['Vict Sex'].notna())]
+    df = df[(df['Vict Sex'] != 'X') & (df['Vict Sex'] != 'H') & (df['Vict Sex'].notna())]
     df = df[(df['Vict Descent'] != '-') & (df['Vict Descent'].notna())]
     return df
 
 
 def remove_unwanted_columns(df: pd.DataFrame) -> pd.DataFrame:
     cols_to_drop = ['AREA NAME', 'Crm Cd Desc', 'Premis Desc', 'Weapon Desc',
-                    'Status Desc', 'Date Rptd']
+                    'Status Desc', 'Date Rptd', 'Rpt Dist No']
     df.drop(columns=[col for col in cols_to_drop if col in df.columns],
             inplace=True)
 
@@ -190,15 +183,13 @@ def clean_data(df: pd.DataFrame, file_path: str) -> pd.DataFrame:
     df = filter_outliers(df, 'Vict Age')
     df = reformat_time_column(df)
     df = generate_features(df)
-    df.drop(['Vict Age','TIME OCC'],axis=1,inplace=True)
+    df.drop(['Vict Age', 'TIME OCC'], axis=1, inplace=True)
     df = extract_datetime_components(df)
     df['Vict Sex'] = df['Vict Sex'].apply(lambda sex: 0 if sex == 'M' else 1)
-    df = apply_frequency_encoding(df, ['Rpt Dist No', 'Crm Cd', 'Premis Cd',
-                                       'Weapon Used Cd'])
-    df = apply_one_hot_encoding(df,
-                                ['AREA', 'Vict Descent',
-                                 'TimeOfDay', 'Season', 'AgeBucket',
-                                 'DayOfWeek', 'IsHoliday'])
+    df = apply_frequency_encoding(df, ['Crm Cd', 'Premis Cd', 'Weapon Used Cd'])
+    df = apply_one_hot_encoding(df, ['AREA', 'Vict Descent',
+                                     'TimeOfDay', 'Season', 'AgeBucket',
+                                     'DayOfWeek', 'IsHoliday'])
     df['Mocodes'] = df['Mocodes'].fillna('').astype(str).str.split()
     df = apply_feature_hashing(df, ['Mocodes'],
                                FeatureHasher(n_features=64, input_type='string'))
