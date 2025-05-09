@@ -65,7 +65,7 @@ def convert_status_to_target(df: pd.DataFrame) -> pd.DataFrame:
 
 def apply_one_hot_encoding(df: pd.DataFrame,
     features: List[str]) -> pd.DataFrame:
-  # Applies one-hot encoding to specified categorical features
+  # Applies one-hot encoding to specifiecd categorical features
   return pd.get_dummies(df, columns=features)
 
 
@@ -156,16 +156,6 @@ def generate_features(df: pd.DataFrame) -> pd.DataFrame:
   df['CrimeCountInArea'] = df.groupby('AREA')['Crm Cd'].transform('count')
   return df
 
-
-def filter_invalid_values(df: pd.DataFrame) -> pd.DataFrame:
-  # Removes rows with invalid victim age, sex, or descent values
-  df = df[(df['Vict Age'] != 0) & (df['Vict Age'].notna())]
-  df = df[(df['Vict Sex'] != 'X') & (df['Vict Sex'] != 'H') & (
-    df['Vict Sex'].notna())]
-  df = df[(df['Vict Descent'] != '-') & (df['Vict Descent'].notna())]
-  return df
-
-
 def remove_unwanted_columns(df: pd.DataFrame) -> pd.DataFrame:
   # Drops columns not useful for modeling and removes duplicates
   cols_to_drop = ['AREA NAME', 'Crm Cd Desc', 'Premis Desc', 'Weapon Desc',
@@ -175,6 +165,16 @@ def remove_unwanted_columns(df: pd.DataFrame) -> pd.DataFrame:
   df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
   return df.drop_duplicates()
 
+def handle_invalid_values(df: pd.DataFrame) -> pd.DataFrame:
+  codes = ['Crm Cd', 'Premis Cd', 'Weapon Used Cd']
+  for code in codes:
+    df.loc[df[code].isna(), code] = 0
+  df = df[(df['Vict Age'] != 0) & (df['Vict Age'].notna())]
+  df = df[(df['Vict Sex'] != 'X') & (df['Vict Sex'] != 'H') & (
+    df['Vict Sex'].notna())]
+  df = df[(df['Vict Descent'] != '-') & (df['Vict Descent'].notna())]
+  df = df.dropna()
+  return df
 
 def clean_data(df: pd.DataFrame, file_path: str) -> pd.DataFrame:
   # Full pipeline to clean and transform crime data for modeling
@@ -184,10 +184,8 @@ def clean_data(df: pd.DataFrame, file_path: str) -> pd.DataFrame:
     raise
   df = remove_unwanted_columns(df)
   df = convert_data_types(df)
-  codes = ['Crm Cd', 'Premis Cd', 'Weapon Used Cd']
-  for code in codes:
-    df.loc[df[code].isna(), code] = 0
-  df = filter_invalid_values(df)
+  df.info()
+  df = handle_invalid_values(df)
   df = filter_outliers(df, 'Vict Age')
   df = reformat_time_column(df)
   df = generate_features(df)

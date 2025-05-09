@@ -55,12 +55,12 @@ class CrimeModel(nn.Module):
             nn.Linear(input_dim, 64),
             nn.ReLU(),
             nn.Dropout(CONFIG['dropout_rate']),
-            nn.Linear(64, 64),
-            nn.ReLU(),
-            nn.Dropout(CONFIG['dropout_rate']),
             nn.Linear(64, 32),
             nn.ReLU(),
-            nn.Linear(32, 1)
+            nn.Dropout(CONFIG['dropout_rate']),
+            nn.Linear(32, 16),
+            nn.ReLU(),
+            nn.Linear(16, 1)
         )
 
     def forward(self, x):

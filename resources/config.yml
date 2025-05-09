@@ -10,6 +10,8 @@ scheduler:
   min_lr: 0.00001
   patience: 15
   factor: 0.5
+train_data: resources/data.csv
+test_data: resources/test.csv
 weight_path: resources/model.pt
 clean_train: resources/clean_train.csv
 clean_test: resources/clean_test.csv
