@@ -184,7 +184,6 @@ def clean_data(df: pd.DataFrame, file_path: str) -> pd.DataFrame:
     raise
   df = remove_unwanted_columns(df)
   df = convert_data_types(df)
-  df.info()
   df = handle_invalid_values(df)
   df = filter_outliers(df, 'Vict Age')
   df = reformat_time_column(df)
