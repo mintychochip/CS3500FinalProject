@@ -581,18 +581,22 @@ def main() -> None:
                 train_df = load_data(path, True) if path != "" else load_data(CONFIG['train_data'], True)
 
             elif choice == '2':
+                load_train : bool = False;
+                load_test : bool = False;
                 try:
                     if train_df is not None:
                         print('Cleaning train data.')
                         clean_train_df = clean_data(train_df, CONFIG['clean_train'])
                     else:
+                        load_train = True
                         print('Load the training data.')
-                        continue
                     if test_df is not None:
                         print('Cleaning test data.')
                         clean_test_df = clean_data(test_df, CONFIG['clean_test'])
                     else:
+                        load_test = True
                         print('Load the test data.')
+                    if load_test or load_train:
                         continue
                 except PermissionError as e:
                     print(f'Permission error: {e}')
